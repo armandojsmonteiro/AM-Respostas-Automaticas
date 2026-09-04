@@ -1,10 +1,13 @@
-
 name: Build IM Responder APK
 
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -23,15 +26,64 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Generate Gradle Wrapper
-        run: gradle wrapper --gradle-version 8.4
+      - name: Extract Android project
+        run: |
+          unzip -o IM_Responder_V57_GitHub_Actions.zip -d android-project
+
+      - name: Find Android project
+        id: project
+        shell: bash
+        run: |
+          GRADLEW=$(find android-project -type f -name gradlew | head -n 1)
+
+          if [ -n "$GRADLEW" ]; then
+            PROJECT_DIR=$(dirname "$GRADLEW")
+            echo "gradlew encontrado em: $PROJECT_DIR"
+          else
+            PROJECT_DIR=$(find android-project -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit | xargs -r dirname)
+
+            if [ -z "$PROJECT_DIR" ]; then
+              PROJECT_DIR=$(find android-project -type f \( -name build.gradle -o -name build.gradle.kts \) -print -quit | xargs -r dirname)
+            fi
+          fi
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERRO: Não foi possível encontrar o projeto Android."
+            find android-project -maxdepth 4 -type f | head -100
+            exit 1
+          fi
+
+          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        working-directory: ${{ steps.project.outputs.project_dir }}
+        shell: bash
+        run: |
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleDebug --stacktrace
+          else
+            gradle assembleDebug --stacktrace
+          fi
+
+      - name: Find APK
+        id: apk
+        shell: bash
+        run: |
+          APK=$(find "${{ steps.project.outputs.project_dir }}" -type f -path "*/build/outputs/apk/debug/*.apk" | head -n 1)
+
+          if [ -z "$APK" ]; then
+            echo "ERRO: APK não foi encontrado."
+            find "${{ steps.project.outputs.project_dir }}" -type f -name "*.apk"
+            exit 1
+          fi
+
+          echo "APK encontrado: $APK"
+          echo "apk_path=$APK" >> "$GITHUB_OUTPUT"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: IM-Responder-V57-debug
-          path: app/build/outputs/apk/debug/*.apk
+          path: ${{ steps.apk.outputs.apk_path }}
           if-no-files-found: error
