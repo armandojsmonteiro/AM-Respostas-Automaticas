@@ -1,10 +1,10 @@
 name: Build AM Respostas Automáticas APK
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
   build:
@@ -14,45 +14,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Encontrar ZIP da aplicação
+      - name: List repository files
         run: |
-          ZIP=$(find . -maxdepth 1 -type f -iname "*.zip" | head -n 1)
-          if [ -z "$ZIP" ]; then
-            echo "ERRO: Não foi encontrado nenhum ficheiro ZIP na raiz do repositório."
-            exit 1
-          fi
-          echo "ZIP encontrado: $ZIP"
-          unzip -o "$ZIP" -d android-project
-
-      - name: Encontrar projeto Android
-        run: |
-          GRADLE_FILE=$(find android-project -name "gradlew" -type f | head -n 1)
-          if [ -z "$GRADLE_FILE" ]; then
-            echo "ERRO: Não foi encontrado um projeto Android com gradlew."
-            exit 1
-          fi
-
-          PROJECT_DIR=$(dirname "$GRADLE_FILE")
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          chmod +x "$GRADLE_FILE"
-
-      - name: Configurar Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Construir APK
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: ./gradlew assembleDebug --no-daemon
-
-      - name: Procurar APK
-        run: |
-          APK=$(find "${PROJECT_DIR}" -type f -name "*.apk" | head -n 1)
-          if [ -z "$APK" ]; then
-            echo "ERRO: O build terminou mas não foi encontrado nenhum APK."
-            exit 1
-          fi
-          echo "APK=$APK" >> "$GITHUB_ENV"
-
-      - name: Dispon
+          echo "Conteúdo do repositório:"
+          find . -maxdepth 3 -type f | sort
