@@ -6,6 +6,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -14,7 +17,46 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: List repository files
+      - name: Find Android project
         run: |
-          echo "Conteúdo do repositório:"
-          find . -maxdepth 3 -type f | sort
+          echo "A procurar projeto Android..."
+          find . -maxdepth 4 -type f \( -name "gradlew" -o -name "build.gradle" -o -name "build.gradle.kts" \) -print
+
+      - name: Find Gradle wrapper
+        id: gradle
+        run: |
+          GRADLEW=$(find . -type f -name "gradlew" -print -quit)
+
+          if [ -z "$GRADLEW" ]; then
+            echo "ERRO: Não encontrei o ficheiro gradlew."
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$GRADLEW")
+          echo "Projeto encontrado em: $PROJECT_DIR"
+          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+
+          chmod +x "$GRADLEW"
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build APK
+        working-directory: ${{ steps.gradle.outputs.project_dir }}
+        run: |
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Find APK
+        run: |
+          echo "APKs encontrados:"
+          find . -type f -name "*.apk" -print
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AM-Respostas-Automaticas-V61
+          path: "**/*.apk"
+          if-no-files-found: error
